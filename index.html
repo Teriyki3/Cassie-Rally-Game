@@ -1989,8 +1989,8 @@ const Hero = (() => {
           float idx = floor(clamp(1.0 - b, 0.0, 0.999) * u_count);
           vec2 local = fract(frag / u_cell);
           float glyph = texture2D(u_atlas, vec2((idx + local.x) / u_count, local.y)).r;
-          vec3 comp = vec3(1.0) - cellCol;                   // complementary colour
-          vec3 ascii = mix(cellCol * 0.12, comp, glyph);     // glyph on a dark cell
+          vec3 shade = clamp(cellCol * 1.7 + 0.06, 0.0, 1.0); // lighter shade, same hue
+          vec3 ascii = mix(cellCol * 0.15, shade, glyph);     // glyph on a dark cell of that colour
           float d = distance(frag, u_mouse);
           float m = 1.0 - smoothstep(u_radius - u_feather, u_radius, d);
           gl_FragColor = vec4(mix(normal, ascii, m), 1.0);
@@ -2022,10 +2022,12 @@ const Hero = (() => {
     addEventListener('resize', resizeAscii);
 
     renderHero = () => {
-      // ease flashlight toward the cursor
+      // effect only lives at the very top; sleeps past 25% of one screen scrolled
+      const gate = 1 - clamp01(scrollY / (innerHeight * 0.25));
       uniforms.u_mouse.value.lerp(mTarget, 0.35);
-      uniforms.u_radius.value += (radTarget - uniforms.u_radius.value) * 0.15;
+      uniforms.u_radius.value += (radTarget * gate - uniforms.u_radius.value) * 0.15;
       uniforms.u_feather.value = uniforms.u_radius.value * 0.45;
+      if (uniforms.u_radius.value < 0.5) { renderer.render(hScene, hCam); return; }  // asleep → plain render
       renderer.setRenderTarget(heroRT);
       renderer.render(hScene, hCam);
       renderer.setRenderTarget(null);
