@@ -1966,6 +1966,7 @@ const Hero = (() => {
       u_mouse:  { value: new THREE.Vector2(-1e4, -1e4) },
       u_radius: { value: 0 },
       u_feather:{ value: 0 },
+      u_bg:     { value: new THREE.Color(0xffffff) },
     };
     const asciiMat = new THREE.ShaderMaterial({
       uniforms,
@@ -1977,22 +1978,28 @@ const Hero = (() => {
         varying vec2 vUv;
         uniform sampler2D u_scene, u_atlas;
         uniform vec2 u_res, u_mouse;
+        uniform vec3 u_bg;
         uniform float u_cell, u_count, u_radius, u_feather;
         float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
         void main(){
           vec2 frag = vUv * u_res;
-          vec3 normal = texture2D(u_scene, vUv).rgb;         // hi-res passthrough
+          // u_scene holds the car on a transparent bg; rebuild the normal frame
+          vec4 hi = texture2D(u_scene, vUv);
+          vec3 normal = mix(u_bg, hi.rgb, hi.a);
           vec2 cellOrigin = floor(frag / u_cell) * u_cell;
           vec2 cellCenter = (cellOrigin + 0.5 * u_cell) / u_res;
-          vec3 cellCol = texture2D(u_scene, cellCenter).rgb;
+          vec4 cell = texture2D(u_scene, cellCenter);
+          vec3 cellCol = cell.rgb;
+          float carMask = cell.a;                             // 1 on car, 0 on background
           float b = luma(cellCol);
           float idx = floor(clamp(1.0 - b, 0.0, 0.999) * u_count);
           vec2 local = fract(frag / u_cell);
           float glyph = texture2D(u_atlas, vec2((idx + local.x) / u_count, local.y)).r;
           vec3 shade = clamp(cellCol * 0.62, 0.0, 1.0);       // darker shade, same hue
-          vec3 ascii = mix(normal, shade, glyph);             // glyphs over the untouched render (transparent bg)
+          vec3 ascii = mix(vec3(1.0), shade, glyph);          // glyph on a white cell
           float d = distance(frag, u_mouse);
-          float m = 1.0 - smoothstep(u_radius - u_feather, u_radius, d);
+          float ring = 1.0 - smoothstep(u_radius - u_feather, u_radius, d);
+          float m = ring * carMask;                           // only convert the car itself
           gl_FragColor = vec4(mix(normal, ascii, m), 1.0);
         }`,
       depthTest: false, depthWrite: false,
@@ -2028,9 +2035,16 @@ const Hero = (() => {
       uniforms.u_radius.value += (radTarget * gate - uniforms.u_radius.value) * 0.15;
       uniforms.u_feather.value = uniforms.u_radius.value * 0.45;
       if (uniforms.u_radius.value < 0.5) { renderer.render(hScene, hCam); return; }  // asleep → plain render
+      // render the car on a transparent bg so its coverage lands in RT alpha,
+      // and hand the shader the real bg colour to rebuild the frame around it
+      const savedBg = hScene.background;
+      uniforms.u_bg.value.copy(savedBg);
+      hScene.background = null;
+      renderer.setClearColor(0x000000, 0);
       renderer.setRenderTarget(heroRT);
       renderer.render(hScene, hCam);
       renderer.setRenderTarget(null);
+      hScene.background = savedBg;
       renderer.render(postScene, postCam);
     };
   }
