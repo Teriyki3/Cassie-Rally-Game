@@ -1917,12 +1917,9 @@ const Hero = (() => {
   for (const s of [-1,1])
     addPart(new THREE.Mesh(new THREE.BoxGeometry(0.34,0.22,0.34), matFlat(PAL.deep)),
             1.15, s*0.7);
-  function applyPack(t){
-    pack.visible = t > 0.003;
-    if (!pack.visible) return;
-    pack.position.y = 0.16 - t*0.95;
-    for (const m of packParts) m.position.copy(m.userData.base).addScaledVector(m.userData.exp, t);
-  }
+  pack.visible = false;
+  car.remove(pack);            // battery pack disabled — never shown on the car
+  function applyPack(t){ /* battery reveal removed */ }
 
   /* --- scroll timeline: keyframes across the whole story (fractions of P).
      Camera position + look target + car orientation + scene colour + pack
