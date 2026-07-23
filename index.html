@@ -604,6 +604,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<!-- F1 car model embedded as a base64 data-URI so it loads with no network
+     fetch (works when index.html is opened directly from disk / file://) -->
+<script src="car_model.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -1427,22 +1430,27 @@ function attachGlb(entry){
   entry.body.add(buildGlbCar(entry.tint, entry.plate));
 }
 
-new THREE.GLTFLoader().load('formula_1_car.glb', (gltf) => {
-  const root = gltf.scene;
-  root.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(root);
-  const size = box.getSize(new THREE.Vector3());
-  const ctr  = box.getCenter(new THREE.Vector3());
-  root.position.set(-ctr.x, -box.min.y, -ctr.z);      // centre X/Z, drop to ground
-  const tpl = new THREE.Group();
-  tpl.add(root);
-  tpl.scale.setScalar(5.0 / Math.max(size.x, size.y, size.z));  // ~5 units long
-  tpl.rotation.y = 0;                                 // set to Math.PI if it faces backwards
-  tpl.updateMatrixWorld(true);
-  CAR.template = tpl;
-  CAR.box = new THREE.Box3().setFromObject(tpl);      // normalised bounds (for the plate)
-  pendingCars.forEach(attachGlb); pendingCars.length = 0;
-}, undefined, (err) => { console.warn('F1 GLB failed to load; keeping procedural car', err); });
+// embedded data-URI (car_model.js) first so it works over file://; path fallback
+const CAR_SRC = (typeof window !== 'undefined' && window.KASI_CAR_GLB) || 'formula_1_car.glb';
+new THREE.GLTFLoader().load(CAR_SRC, (gltf) => {
+  try {
+    const root = gltf.scene;
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    const ctr  = box.getCenter(new THREE.Vector3());
+    root.position.set(-ctr.x, -box.min.y, -ctr.z);      // centre X/Z, drop to ground
+    const tpl = new THREE.Group();
+    tpl.add(root);
+    tpl.scale.setScalar(5.0 / Math.max(size.x, size.y, size.z));  // ~5 units long
+    tpl.rotation.y = 0;                                 // set to Math.PI if it faces backwards
+    tpl.updateMatrixWorld(true);
+    CAR.template = tpl;
+    CAR.box = new THREE.Box3().setFromObject(tpl);      // normalised bounds (for the plate)
+    pendingCars.forEach(attachGlb); pendingCars.length = 0;
+    console.log('F1 GLB loaded — swapped', 1 + pendingCars.length, 'car(s)');
+  } catch (e) { console.error('F1 GLB attach failed; keeping procedural car', e); }
+}, undefined, (err) => { console.error('F1 GLB failed to load; keeping procedural car', err); });
 
 function makeRallyCar(primary, accent, plateText){
   const body = new THREE.Group();
